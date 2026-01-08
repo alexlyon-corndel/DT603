@@ -1,4 +1,16 @@
 import os
+import json
+
+if os.path.exists("local.settings.json"):
+    with open("local.settings.json", "r") as f:
+        try:
+            settings = json.load(f)
+            #push variables
+            for key, value in settings.get("Values",{}).items():
+                os.environ[key] = value
+            print("loaded keys from json")
+        except Exception as e:
+            print("cant load json")
 
 # CONFIGURATION 
 # Uses os.getenv() to pull from Azure Settings / local.settings.json
@@ -18,4 +30,3 @@ FILTER_COUNTRY        = os.getenv("FILTER_COUNTRY", "UK")
 
 CURRENT_WEEK_START    = "2025-11-24" 
 CURRENT_WEEK_END      = "2025-11-30"
-
