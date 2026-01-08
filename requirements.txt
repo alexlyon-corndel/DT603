@@ -1,0 +1,10 @@
+azure-functions
+azure-kusto-data
+openai
+matplotlib
+pandas
+fpdf
+requests
+azure-communication-email
+azure-identity
+azure-core
