@@ -1,72 +1,108 @@
 from fpdf import FPDF
 
-class PDFReport(FPDF): 
+class PDFReport(FPDF):
     def header(self):
-        """Defines the standard header for all pages. 
-        This header is used to identify the report as a diagnostic report."""
         self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, 'Engineering Diagnostic Report', 0, 0, 'R') # 'R' for right alignment
-        self.ln(10) # Line break
+        self.cell(0, 10, 'Executive Benchmark & Predictive Model', 0, 0, 'R')
+        self.ln(10)
 
-def build_pdf(narrative_text, data, chart_buffer):
+def clean_utf8(text):
     """
-    Compiles the textual analysis and visual assets into a PDF document. This PDF document is used to report the diagnostic results to the user.
-
-    Args:
-        narrative_text (str): The text returned by the AI Analyst.
-        data (dict): The raw data dictionary. This data is used to populate the PDF document.
-        chart_buffer (io.BytesIO): The image buffer from visualization.py.
-
-    Returns:
-        bytes: The binary content of the generated PDF.
+    Sanitizes text to be compatible with Latin-1 PDF encoding.
+    Replaces common incompatible characters (like smart quotes, em-dashes, etc.)
     """
+    if not isinstance(text, str):
+        return str(text)
+        
+    replacements = {
+        '\u2018': "'",  # Left single quote
+        '\u2019': "'",  # Right single quote
+        '\u201c': '"',  # Left double quote
+        '\u201d': '"',  # Right double quote
+        '\u2013': '-',  # En dash
+        '\u2014': '-',  # Em dash
+        '\u2026': '...', # Ellipsis
+        '\u00A0': ' ',   # Non-breaking space
+    }
+    
+    for char, replacement in replacements.items():
+        text = text.replace(char, replacement)
+        
+    # Final fallback: encode to latin-1, replacing errors with '?'
+    return text.encode('latin-1', 'replace').decode('latin-1')
+
+def build_pdf(text, data, img_speed, img_vol, img_err):
     pdf = PDFReport()
     pdf.add_page()
     
-    # 1. Document Title
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "System Diagnostic & Asset Check", ln=True) # ln=True is used to move to the next line
+    # Title
+    pdf.set_font("Arial", "B", 20)
+    pdf.cell(0, 10, "Executive Benchmark Report", ln=True)
     pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 10, f"Status: {data['Period']}", ln=True) # ln=True is used to move to the next line
+    # Sanitize the period string just in case
+    clean_period = clean_utf8(f"Region: {data.get('Period', 'Unknown')}")
+    pdf.cell(0, 10, clean_period, ln=True)
     pdf.ln(5)
 
-    # 2. AI Narrative Section
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Automated Analysis", ln=True) # ln=True is used to move to the next line
+    # AI Summary
     pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 6, narrative_text) # Multi-cell is used to wrap the text to the width of the page
+    # Clean the Markdown AND the special characters
+    clean_text = clean_utf8(text.replace("**", "").replace("###", ""))
+    pdf.multi_cell(0, 6, clean_text)
     pdf.ln(10)
 
-    # 3. Asset Data Table
+    # Asset Table
     pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Asset Utilisation Data", ln=True) # ln=True is used to move to the next line
-    
-    # Table Header
+    pdf.cell(0, 10, "Appendix: Critical Asset Watchlist", ln=True)
     pdf.set_font("Arial", "B", 10)
     pdf.set_fill_color(240, 240, 240)
-    pdf.cell(80, 10, "Printer ID", 1, 0, 'C', 1) # 'C' is used to center the text
-    pdf.cell(60, 10, "Warehouse Location", 1, 0, 'C', 1)
-    pdf.cell(40, 10, "Volume", 1, 1, 'C', 1)
+    pdf.cell(60, 10, "Warehouse", 1, 0, 'C', 1)
+    pdf.cell(60, 10, "Printer ID", 1, 0, 'C', 1)
+    pdf.cell(30, 10, "Vol", 1, 0, 'C', 1)
+    pdf.cell(30, 10, "Error %", 1, 1, 'C', 1)
     
-    # Table Rows
     pdf.set_font("Arial", "", 10)
-    for _, row in data['Assets_DF'].iterrows():
-        pdf.cell(80, 10, str(row['EnginePrinter']), 1)
-        pdf.cell(60, 10, str(row['WarehouseName']), 1)
-        pdf.cell(40, 10, str(row['Vol']), 1, 1, 'C')
-
-    # 4. Visualization
-    if chart_buffer:
-        pdf.add_page()
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, "Visualisation: Volume Distribution", ln=True)
+    # Check if Assets_DF exists before iterating
+    if 'Assets_DF' in data and not data['Assets_DF'].empty:
+        for _, row in data['Assets_DF'].iterrows():
+            if row['ErrorRate'] > 5.0: pdf.set_text_color(200, 0, 0)
+            else: pdf.set_text_color(0, 0, 0)
+            
+            # Clean table data
+            w_name = clean_utf8(row['WarehouseName'])
+            p_name = clean_utf8(row['EnginePrinter'])
+            
+            pdf.cell(60, 10, w_name, 1)
+            pdf.cell(60, 10, p_name, 1)
+            pdf.cell(30, 10, str(row['Vol']), 1, 0, 'C')
+            pdf.cell(30, 10, f"{row['ErrorRate']}%", 1, 1, 'C')
+    else:
+        pdf.cell(0, 10, "No Asset Data Available", 1, 1, 'C')
         
-        # Write buffer to temporary file for FPDF to read
-        with open("temp_chart.png", "wb") as f: # Write the buffer to a temporary file
-            f.write(chart_buffer.getbuffer())
-        
-        pdf.image("temp_chart.png", x=10, y=30, w=180) # Add the image to the PDF
+    pdf.set_text_color(0, 0, 0)
 
-    return pdf.output(dest='S').encode('latin-1') # Encode the PDF to latin-1 to avoid Unicode errors
+    # --- CHART 1: SPEED ---
+    if img_speed:
+        pdf.add_page(orientation='L')
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "1. Speed & Latency Forecast", ln=True)
+        with open("temp_speed.png", "wb") as f: f.write(img_speed.getbuffer())
+        pdf.image("temp_speed.png", x=10, y=25, w=270)
 
-# This function is used to build the PDF document.
+    # --- CHART 2: VOLUME ---
+    if img_vol:
+        pdf.add_page(orientation='L')
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "2. Volume & Capacity Forecast", ln=True)
+        with open("temp_vol.png", "wb") as f: f.write(img_vol.getbuffer())
+        pdf.image("temp_vol.png", x=10, y=25, w=270)
+
+    # --- CHART 3: ERRORS ---
+    if img_err:
+        pdf.add_page(orientation='L')
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "3. Reliability & Error Rate Forecast", ln=True)
+        with open("temp_err.png", "wb") as f: f.write(img_err.getbuffer())
+        pdf.image("temp_err.png", x=10, y=25, w=270)
+
+    return pdf.output(dest='S').encode('latin-1')

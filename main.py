@@ -1,84 +1,75 @@
 import base64
 import logging
 import azure.functions as func
-from azure.communication.email import EmailClient 
+from azure.communication.email import EmailClient
 
 # Import Local Modules
 import config
-from data_engine import fetch_deep_dive_data # This function is used to retrieve the asset data from the Kusto (ADX) cluster
-from ai_analyst import get_ai_narrative # This function is used to generate the AI commentary on the retrieved assets
-from visualisation import create_charts # This function is used to create the volume chart
-from report_generator import build_pdf # This function is used to build the PDF document
+from data_engine import fetch_deep_dive_data, fetch_long_term_data
+from ai_analyst import get_ai_narrative
+from predictive_analytics import generate_executive_charts
+from report_generator import build_pdf
 
-app = func.FunctionApp() # This is the Azure Function App
+app = func.FunctionApp()
 
-def run_orchestrator(): # This function is used to run the diagnostic routine
-    """
-    Main execution pipeline for the diagnostic routine. 
+def run_orchestrator():
+    print("--- STARTING EXECUTIVE BENCHMARK SEQUENCE ---")
     
-    Sequence of Operations:
-    1. Retrieve asset data from Kusto (ADX). 
-    2. Generate AI commentary on the retrieved assets. 
-    3. Render a volume chart.
-    4. Compile results into a PDF.
-    5. Dispatch the report via Email.
-    """
-    print("--- STARTING DIAGNOSTIC SEQUENCE ---") 
+    # 1. Fetch Weekly Tactical Data (For AI Narrative)
+    weekly_data = fetch_deep_dive_data()
     
-    # Step 1: Data Retrieval
-    data = fetch_deep_dive_data()
+    # 2. Fetch Long-Term Historic Data (For Graphs & Prediction)
+    history_df = fetch_long_term_data()
     
-    if not data:
-        print("Critical Failure: No data received. Aborting.") # If no data is received, the function will return
-        return
-
-    # Step 2: Intelligence Layer
-    narrative = get_ai_narrative(data) # This function is used to generate the AI commentary on the retrieved assets
+    if history_df.empty:
+        print("Critical: No history found. Graphs will be empty.")
+        # Proceeding anyway so you at least get the AI narrative
     
-    # Step 3: Visualisation Layer
-    # Passing the Assets DataFrame specifically
-    chart_img = create_charts(data['Assets_DF']) # This function is used to create the volume chart
+    # 3. Generate AI Commentary
+    narrative = get_ai_narrative(weekly_data)
     
-    # Step 4: Report Generation
-    pdf_bytes = build_pdf(narrative, data, chart_img) # This function is used to build the PDF document
+    # 4. Generate Predictive Graphs
+    img_speed, img_vol, img_err = generate_executive_charts(history_df)
     
-    # Step 5: Local Save (Artifact Retention)
-    with open("DIAGNOSTIC_REPORT.pdf", "wb") as f: # Write the PDF to a file
+    # 5. Build PDF
+    print("   -> Compiling Executive PDF...")
+    pdf_bytes = build_pdf(narrative, weekly_data, img_speed, img_vol, img_err)
+    
+    # 6. Save Locally
+    with open("EXECUTIVE_BENCHMARK.pdf", "wb") as f:
         f.write(pdf_bytes)
-    print("Local PDF artifact saved as 'DIAGNOSTIC_REPORT.pdf'") # Confirmation message
+    print("PDF Saved as EXECUTIVE_BENCHMARK.pdf")
 
-    # Step 6: Communication Layer
-    print(f"--- Initiating dispatch to {config.RECIPIENT_EMAIL} ---") # Confirmation message
+    # 7. Send Email
+    print(f"--- Dispatching to {config.RECIPIENT_EMAIL} ---")
     try:
         client = EmailClient.from_connection_string(config.ACS_CONNECTION_STRING)
         message = {
             "senderAddress": config.SENDER_ADDRESS,
             "recipients": {"to": [{"address": config.RECIPIENT_EMAIL}]},
             "content": {
-                "subject": f"System Diagnostic: {data['Period']}",
-                "plainText": "Attached is the diagnostic output from the Top 5 Assets test run.",
+                "subject": f"Executive Benchmark: {config.FILTER_COUNTRY} ({weekly_data['Period']})",
+                "plainText": "Attached is the Predictive Executive Benchmark Report.",
             },
             "attachments": [
                 {
-                    "name": "Diagnostic_Report.pdf", 
+                    "name": "Executive_Benchmark.pdf", 
                     "contentType": "application/pdf", 
                     "contentInBase64": base64.b64encode(pdf_bytes).decode()
                 }
             ]
         }
         client.begin_send(message)
-        print("Email dispatch successful.") # Confirmation message
+        print("Email Sent.")
     except Exception as e:
-        print(f"Email dispatch failed: {e}") # Error message
+        print(f"❌ Email Failed: {e}")
 
 # Azure Function Trigger
-@app.schedule(schedule="0 0 8 * * 1", arg_name="myTimer", run_on_startup=False,
-              use_monitor=False) 
+@app.schedule(schedule="0 0 8 * * 1", arg_name="myTimer", run_on_startup=False, use_monitor=False) 
 def timer_trigger(myTimer: func.TimerRequest) -> None:
-    logging.info('Timer trigger function initiated.') # Confirmation message
+    logging.info('Timer trigger function initiated.')
     run_orchestrator()
-    logging.info('Timer trigger function completed.') # Confirmation message
+    logging.info('Timer trigger function completed.')
 
-# Local Entry Point
 if __name__ == "__main__":
-    run_orchestrator() # Run the diagnostic routine
+    run_orchestrator()

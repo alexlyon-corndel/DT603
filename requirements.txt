@@ -8,3 +8,8 @@ requests
 azure-communication-email
 azure-identity
 azure-core
+
+scikit-learn
+seaborn
+numpy
+statsmodels

@@ -3,20 +3,8 @@ from openai import AzureOpenAI
 import config
 
 def get_ai_narrative(data):
-    """
-    Generates a preliminary operational summary using Azure OpenAI.
-    
-    In 'Test Mode', this function receives a reduced dataset. The system prompt 
-    is adjusted to strictly analyse the provided asset list, disregarding 
-    missing baseline or trend data to prevent hallucination.
-
-    Args:
-        data (dict): The data dictionary returned by data_engine.fetch_deep_dive_data().
-
-    Returns:
-        str: A text response containing the AI-generated analysis of the top assets.
-    """
-    print("   -> Requesting AI analysis of asset data...")
+    """Generates the Executive Benchmark Narrative."""
+    print("   -> Requesting AI Analysis...")
     
     client = AzureOpenAI(
         azure_endpoint=config.AZURE_OPENAI_ENDPOINT, 
@@ -24,29 +12,39 @@ def get_ai_narrative(data):
         api_version=config.AZURE_API_VERSION
     )
 
-    # Simplified Prompt for Test Mode
     system_prompt = f"""
-    You are a Printer Reliability Engineer.
-    Your task is to review the following list of high-volume printers (Top 5 by usage) and provide a brief, professional summary of which printers are under the heaviest load.
-    TASK:
-    Review the following list of high-volume printers (Top 5 by usage) and provide a brief, professional summary of which printers are under the heaviest load.
-    Provide a brief, professional summary of which assets are under the heaviest load. Your output should be no more than 300 tokens.
+    You are the Senior Reliability Engineer for a logistics network (UK Region).
+    Your job is to write a strategic "Executive Benchmark Report".
+
+    ### INPUT INTELLIGENCE (JSON):
+    1. **Baseline Context:** {json.dumps(data['Baseline'])}
+    2. **Shift Comparison (Day vs Night):** {json.dumps(data['Shifts'])}
+       *Compare efficiency. Is the Night shift struggling?*
+    3. **Problematic Hours" (Heatmap):** {json.dumps(data['Heatmap'])}
+       *Identify the specific hour where failures spike. Hypothesise why.*
+    4. **Printer Watchlist:** {json.dumps(data['Assets'])}
+       *The worst performing printer this week.*
+
+    ### REPORT REQUIREMENTS:
+    **Tone:** Clinical, decisive, British English (e.g., 'Optimise', 'Centre', 'Programme').
+    **Structure:**
     
-    Your output should be no more than 1 page. 
+    **1. Executive Summary:** - A 2-sentence synopsis of the week's health.
+    - Give a "Stability Score" out of 10.
+
+    **2. Operational Bottlenecks (Shift & Time):**
+    - Explicitly compare Day vs Night performance.
+    - Call out the specific time of day causing the most pain (from Heatmap).
     
-    DATA:
-    {json.dumps(data['Assets'])}
-    
-    OUTPUT FORMAT:
-    - Use British English.
-    - Bullet points.
-    - No filler text.
+    **3. Asset & Remediation:**
+    - Name the worst performing Warehouse/Printer.
+    - Provide 2 technical recommendations for next week.
     """
 
     response = client.chat.completions.create(
         model=config.AZURE_OPENAI_MODEL,
         messages=[{"role": "system", "content": system_prompt}],
         temperature=0.2,
-        max_tokens=300
+        max_tokens=800
     )
     return response.choices[0].message.content
