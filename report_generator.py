@@ -87,4 +87,12 @@ def build_pdf(text, data, img_speed, img_vol, img_err, img_tactical):
         with open("temp_speed.png", "wb") as f: f.write(img_speed.getbuffer())
         pdf.image("temp_speed.png", x=10, y=25, w=270)
 
+    # --- 4. PREDICTED RELIABILITY (ADDED THIS MISSING BLOCK) ---
+    if img_err:
+        pdf.add_page(orientation='L')
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "4. Predicted Reliability Forecast (4 Weeks)", ln=True)
+        with open("temp_err.png", "wb") as f: f.write(img_err.getbuffer())
+        pdf.image("temp_err.png", x=10, y=25, w=270)
+
     return pdf.output(dest='S').encode('latin-1')

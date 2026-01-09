@@ -14,20 +14,20 @@ app = func.FunctionApp()
 def run_orchestrator():
     print("--- STARTING EXECUTIVE BENCHMARK SEQUENCE ---")
     
-    # 1. Fetch Weekly Tactical Data (For AI Narrative)
+    # 1. Fetch Weekly Tactical Data (History)
     weekly_data = fetch_deep_dive_data()
     
-    # 2. Fetch Long-Term Historic Data (For Graphs & Prediction)
+    # 2. Fetch Long-Term Historic Data (History)
     history_df = fetch_long_term_data()
     
-    # 3. Generate AI Commentary
-    narrative = get_ai_narrative(weekly_data)
+    # 3. GENERATE GRAPHS + PREDICTIVE DATA (The Swap!)
+    # Now we get 'forecast_stats' to pass to the AI
+    img_speed, img_vol, img_err, img_tactical, forecast_stats = generate_executive_charts(history_df)
     
-    # 4. Generate Predictive Graphs (Now includes Tactical Chart)
-    # Returns 4 buffers now: Speed, Vol, Err, and Tactical(Next Week)
-    img_speed, img_vol, img_err, img_tactical = generate_executive_charts(history_df)
+    # 4. Generate AI Commentary (Now with Forecast Intelligence)
+    narrative = get_ai_narrative(weekly_data, forecast_stats)
     
-    # 5. Build PDF (Updated signature)
+    # 5. Build PDF
     print("   -> Compiling Executive PDF...")
     pdf_bytes = build_pdf(narrative, weekly_data, img_speed, img_vol, img_err, img_tactical)
     
@@ -37,7 +37,6 @@ def run_orchestrator():
     print("PDF Saved as EXECUTIVE_BENCHMARK.pdf")
 
     # 7. Send Email
-    # (Email code remains the same...)
     print(f"--- Dispatching to {config.RECIPIENT_EMAIL} ---")
     try:
         client = EmailClient.from_connection_string(config.ACS_CONNECTION_STRING)
