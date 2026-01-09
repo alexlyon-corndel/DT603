@@ -3,7 +3,6 @@ import logging
 import azure.functions as func
 from azure.communication.email import EmailClient
 
-# Import Local Modules
 import config
 from data_engine import fetch_deep_dive_data, fetch_long_term_data
 from ai_analyst import get_ai_narrative
@@ -21,19 +20,16 @@ def run_orchestrator():
     # 2. Fetch Long-Term Historic Data (For Graphs & Prediction)
     history_df = fetch_long_term_data()
     
-    if history_df.empty:
-        print("Critical: No history found. Graphs will be empty.")
-        # Proceeding anyway so you at least get the AI narrative
-    
     # 3. Generate AI Commentary
     narrative = get_ai_narrative(weekly_data)
     
-    # 4. Generate Predictive Graphs
-    img_speed, img_vol, img_err = generate_executive_charts(history_df)
+    # 4. Generate Predictive Graphs (Now includes Tactical Chart)
+    # Returns 4 buffers now: Speed, Vol, Err, and Tactical(Next Week)
+    img_speed, img_vol, img_err, img_tactical = generate_executive_charts(history_df)
     
-    # 5. Build PDF
+    # 5. Build PDF (Updated signature)
     print("   -> Compiling Executive PDF...")
-    pdf_bytes = build_pdf(narrative, weekly_data, img_speed, img_vol, img_err)
+    pdf_bytes = build_pdf(narrative, weekly_data, img_speed, img_vol, img_err, img_tactical)
     
     # 6. Save Locally
     with open("EXECUTIVE_BENCHMARK.pdf", "wb") as f:
@@ -41,6 +37,7 @@ def run_orchestrator():
     print("PDF Saved as EXECUTIVE_BENCHMARK.pdf")
 
     # 7. Send Email
+    # (Email code remains the same...)
     print(f"--- Dispatching to {config.RECIPIENT_EMAIL} ---")
     try:
         client = EmailClient.from_connection_string(config.ACS_CONNECTION_STRING)
