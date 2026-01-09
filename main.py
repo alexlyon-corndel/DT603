@@ -21,7 +21,7 @@ def run_orchestrator():
     history_df = fetch_long_term_data()
     
     # 3. GENERATE GRAPHS + PREDICTIVE DATA (The Swap!)
-    # Now we get 'forecast_stats' to pass to the AI
+    # 'forecast_stats' to pass to the AI
     img_speed, img_vol, img_err, img_tactical, forecast_stats = generate_executive_charts(history_df)
     
     # 4. Generate AI Commentary (Now with Forecast Intelligence)
